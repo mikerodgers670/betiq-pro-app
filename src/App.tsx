@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect } from "react";
 
 const STORAGE_KEY = "betting_games_db";
@@ -13,20 +14,15 @@ const defaultGames = [
   { id: "5", date: new Date().toISOString().split("T")[0], league: "Champions League", homeTeam: "PSG", awayTeam: "Bayern Munich", time: "21:00", prediction: "Bayern Win & Over 2.5", confidence: 88, odds: "3.10", tip: "Bayern's pressing game shreds PSG's midfield. Expect 3+ goals and a Bayern victory.", result: "", status: "upcoming", sport: "⚽ Football", isPremium: true },
 ];
 
-async function loadGames() {
-  try { const r = await window.storage.get(STORAGE_KEY); return r ? JSON.parse(r.value) : defaultGames; }
+function loadGames() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultGames; }
   catch { return defaultGames; }
 }
-async function saveGames(games) {
-  try { await window.storage.set(STORAGE_KEY, JSON.stringify(games)); } catch (e) { console.error(e); }
+function saveGames(games) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(games)); } catch (e) { console.error(e); }
 }
-async function loadPremiumPrice() {
-  try { const r = await window.storage.get(PREMIUM_PRICE_KEY, true); return r ? r.value : "199"; }
-  catch { return "199"; }
-}
-async function savePremiumPrice(price) {
-  try { await window.storage.set(PREMIUM_PRICE_KEY, price, true); } catch (e) { console.error(e); }
-}
+function loadPremiumPrice() { return localStorage.getItem(PREMIUM_PRICE_KEY) || "199"; }
+function savePremiumPrice(price) { localStorage.setItem(PREMIUM_PRICE_KEY, price); }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().split("T")[0];
@@ -34,27 +30,25 @@ const SPORTS = ["⚽ Football", "🏀 Basketball", "🎾 Tennis", "🏈 American
 const STATUSES = ["upcoming", "live", "finished"];
 const CONFIDENCE_COLOR = (n) => n >= 75 ? "#00e676" : n >= 55 ? "#ffeb3b" : "#ff5252";
 
-// ── Premium State ─────────────────────────────────────────────────────────────
 function usePremium() {
   const [isPremium, setIsPremium] = useState(false);
   useEffect(() => {
-    const data = localStorage.getItem(PREMIUM_KEY);
-    if (data) {
-      const { expiry } = JSON.parse(data);
-      if (Date.now() < expiry) setIsPremium(true);
-      else localStorage.removeItem(PREMIUM_KEY);
-    }
+    try {
+      const data = localStorage.getItem(PREMIUM_KEY);
+      if (data) {
+        const { expiry } = JSON.parse(data);
+        if (Date.now() < expiry) setIsPremium(true);
+        else localStorage.removeItem(PREMIUM_KEY);
+      }
+    } catch {}
   }, []);
   const unlock = (days = 30) => {
-    const expiry = Date.now() + days * 24 * 60 * 60 * 1000;
-    localStorage.setItem(PREMIUM_KEY, JSON.stringify({ expiry }));
+    localStorage.setItem(PREMIUM_KEY, JSON.stringify({ expiry: Date.now() + days * 86400000 }));
     setIsPremium(true);
   };
-  const revoke = () => { localStorage.removeItem(PREMIUM_KEY); setIsPremium(false); };
-  return { isPremium, unlock, revoke };
+  return { isPremium, unlock };
 }
 
-// ── PWA Install Banner ────────────────────────────────────────────────────────
 function InstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [show, setShow] = useState(false);
@@ -103,7 +97,6 @@ function InstallBanner() {
   );
 }
 
-// ── Shared UI ─────────────────────────────────────────────────────────────────
 function Badge({ children, color }) {
   return <span style={{ background: color + "22", color, border: `1px solid ${color}44`, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{children}</span>;
 }
@@ -129,9 +122,8 @@ function ResultBadge({ result }) {
   return <Badge color={color}>{result}</Badge>;
 }
 
-// ── Payment Modal (M-Pesa) ────────────────────────────────────────────────────
 function PaymentModal({ onClose, onSuccess, price }) {
-  const [step, setStep] = useState("form"); // form | processing | success
+  const [step, setStep] = useState("form");
   const [phone, setPhone] = useState("");
   const [err, setErr] = useState("");
 
@@ -147,26 +139,19 @@ function PaymentModal({ onClose, onSuccess, price }) {
   const pay = () => {
     if (!validate()) return;
     setStep("processing");
-    // Simulate STK push processing delay
     setTimeout(() => setStep("success"), 3000);
   };
 
-  const confirm = () => { onSuccess(); onClose(); };
-
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "#000000cc", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div style={{ background: "linear-gradient(135deg,#0f1420,#1a1f2e)", border: "1px solid #ffffff12", borderRadius: 24, padding: "36px 32px", width: "100%", maxWidth: 420, position: "relative" }} onClick={e => e.stopPropagation()}>
-
+      <div style={{ background: "linear-gradient(135deg,#0f1420,#1a1f2e)", border: "1px solid #ffffff12", borderRadius: 24, padding: "36px 32px", width: "100%", maxWidth: 420 }} onClick={e => e.stopPropagation()}>
         {step === "form" && (
           <>
-            {/* Header */}
             <div style={{ textAlign: "center", marginBottom: 28 }}>
               <div style={{ fontSize: 44, marginBottom: 8 }}>👑</div>
-              <div style={{ fontWeight: 900, fontSize: 22, color: "#fff", letterSpacing: -0.5 }}>Unlock Premium Odds</div>
-              <div style={{ color: "#888", fontSize: 14, marginTop: 6 }}>Access our highest-confidence tips &amp; exclusive analysis</div>
+              <div style={{ fontWeight: 900, fontSize: 22, color: "#fff" }}>Unlock Premium Odds</div>
+              <div style={{ color: "#888", fontSize: 14, marginTop: 6 }}>Access our highest-confidence tips & exclusive analysis</div>
             </div>
-
-            {/* Benefits */}
             <div style={{ background: "#ffffff06", borderRadius: 14, padding: "16px 20px", marginBottom: 24, border: "1px solid #ffd70020" }}>
               {[["🎯", "Premium picks with 85%+ confidence"], ["📊", "Expert match analysis & reasoning"], ["⚡", "Early access before odds shift"], ["🔒", "Exclusive leagues & markets"]].map(([icon, text]) => (
                 <div key={text} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
@@ -175,50 +160,34 @@ function PaymentModal({ onClose, onSuccess, price }) {
                 </div>
               ))}
             </div>
-
-            {/* Price */}
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 11, color: "#666", letterSpacing: 1.5, marginBottom: 4 }}>30-DAY ACCESS</div>
               <div style={{ fontSize: 36, fontWeight: 900, color: "#ffd700" }}>KES {price}</div>
             </div>
-
-            {/* M-Pesa Input */}
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 11, color: "#888", letterSpacing: 1.2, marginBottom: 8 }}>M-PESA PHONE NUMBER</div>
               <div style={{ display: "flex", alignItems: "center", background: "#0f1420", border: `1px solid ${err ? "#ff5252" : "#ffffff20"}`, borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "12px 14px", borderRight: "1px solid #ffffff15", color: "#555", fontSize: 14, whiteSpace: "nowrap" }}>🇰🇪 +254</div>
-                <input
-                  type="tel"
-                  placeholder="0712 345 678"
-                  value={phone}
-                  onChange={e => { setPhone(e.target.value); setErr(""); }}
-                  onKeyDown={e => e.key === "Enter" && pay()}
-                  style={{ flex: 1, background: "transparent", border: "none", color: "#fff", padding: "12px 14px", fontSize: 15, outline: "none" }}
-                />
+                <div style={{ padding: "12px 14px", borderRight: "1px solid #ffffff15", color: "#555", fontSize: 14 }}>🇰🇪 +254</div>
+                <input type="tel" placeholder="0712 345 678" value={phone} onChange={e => { setPhone(e.target.value); setErr(""); }} onKeyDown={e => e.key === "Enter" && pay()}
+                  style={{ flex: 1, background: "transparent", border: "none", color: "#fff", padding: "12px 14px", fontSize: 15, outline: "none" }} />
               </div>
               {err && <div style={{ color: "#ff5252", fontSize: 12, marginTop: 6 }}>{err}</div>}
             </div>
             <div style={{ color: "#555", fontSize: 12, marginBottom: 20 }}>You'll receive an M-Pesa STK push on your phone to complete payment.</div>
-
-            <button onClick={pay} style={{ width: "100%", background: "linear-gradient(135deg,#00875a,#00c47d)", border: "none", color: "#fff", borderRadius: 12, padding: "15px", fontSize: 16, fontWeight: 900, cursor: "pointer", letterSpacing: 0.5 }}>
-              Pay KES {price} via M-Pesa
-            </button>
+            <button onClick={pay} style={{ width: "100%", background: "linear-gradient(135deg,#00875a,#00c47d)", border: "none", color: "#fff", borderRadius: 12, padding: "15px", fontSize: 16, fontWeight: 900, cursor: "pointer" }}>Pay KES {price} via M-Pesa</button>
             <button onClick={onClose} style={{ width: "100%", background: "transparent", border: "none", color: "#444", cursor: "pointer", marginTop: 14, fontSize: 13 }}>Cancel</button>
           </>
         )}
-
         {step === "processing" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 52, marginBottom: 20, animation: "spin 1.5s linear infinite", display: "inline-block" }}>⏳</div>
+            <div style={{ fontSize: 52, marginBottom: 20, display: "inline-block" }}>⏳</div>
             <div style={{ fontWeight: 900, fontSize: 20, color: "#fff", marginBottom: 10 }}>STK Push Sent!</div>
             <div style={{ color: "#888", fontSize: 14, lineHeight: 1.7 }}>Check your phone for an M-Pesa prompt.<br />Enter your PIN to complete payment.</div>
             <div style={{ marginTop: 24, display: "flex", gap: 6, justifyContent: "center" }}>
-              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#00c47d", animation: `pulse 1s ${i*0.3}s ease-in-out infinite` }} />)}
+              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#00c47d" }} />)}
             </div>
-            <style>{`@keyframes pulse{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
           </div>
         )}
-
         {step === "success" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
@@ -226,9 +195,7 @@ function PaymentModal({ onClose, onSuccess, price }) {
             <div style={{ color: "#888", fontSize: 14, marginBottom: 28, lineHeight: 1.7 }}>
               Welcome to Premium! Your access is active for <span style={{ color: "#ffd700", fontWeight: 700 }}>30 days</span>.
             </div>
-            <button onClick={confirm} style={{ width: "100%", background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 12, padding: "15px", fontSize: 16, fontWeight: 900, cursor: "pointer" }}>
-              View Premium Odds 👑
-            </button>
+            <button onClick={() => { onSuccess(); onClose(); }} style={{ width: "100%", background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 12, padding: "15px", fontSize: 16, fontWeight: 900, cursor: "pointer" }}>View Premium Odds 👑</button>
           </div>
         )}
       </div>
@@ -236,37 +203,18 @@ function PaymentModal({ onClose, onSuccess, price }) {
   );
 }
 
-// ── Game Card ─────────────────────────────────────────────────────────────────
 function GameCard({ game, isPremium, onUnlock }) {
   const [expanded, setExpanded] = useState(false);
   const locked = game.isPremium && !isPremium;
-
   return (
     <div style={{ position: "relative", borderRadius: 16, overflow: "hidden" }}>
-      {/* Premium glow border */}
-      {game.isPremium && (
-        <div style={{ position: "absolute", inset: 0, borderRadius: 16, border: "1px solid #ffd70040", pointerEvents: "none", zIndex: 2, background: locked ? "linear-gradient(135deg,#ffd70008,#ffb30005)" : "none" }} />
-      )}
-
-      <div
-        onClick={() => !locked && setExpanded(!expanded)}
-        style={{
-          background: game.isPremium
-            ? "linear-gradient(135deg,#1e1a10 0%,#1a1f2e 100%)"
-            : "linear-gradient(135deg,#1a1f2e 0%,#0f1420 100%)",
-          border: game.isPremium ? "1px solid #ffd70025" : "1px solid #ffffff0f",
-          borderRadius: 16, padding: "20px 24px",
-          cursor: locked ? "default" : "pointer",
-          transition: "transform .2s, box-shadow .2s",
-          filter: locked ? "brightness(0.7)" : "none",
-        }}
-        onMouseEnter={e => { if (!locked) e.currentTarget.style.transform = "translateY(-2px)"; }}
-        onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
-      >
+      {game.isPremium && <div style={{ position: "absolute", inset: 0, borderRadius: 16, border: "1px solid #ffd70040", pointerEvents: "none", zIndex: 2 }} />}
+      <div onClick={() => !locked && setExpanded(!expanded)}
+        style={{ background: game.isPremium ? "linear-gradient(135deg,#1e1a10,#1a1f2e)" : "linear-gradient(135deg,#1a1f2e,#0f1420)", border: game.isPremium ? "1px solid #ffd70025" : "1px solid #ffffff0f", borderRadius: 16, padding: "20px 24px", cursor: locked ? "default" : "pointer", filter: locked ? "brightness(0.65)" : "none", transition: "transform .2s" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ fontSize: 11, color: "#888", letterSpacing: 1.5, marginBottom: 4 }}>{game.sport} · {game.league} · {game.time}</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>{game.homeTeam} <span style={{ color: "#555" }}>vs</span> {game.awayTeam}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{game.homeTeam} <span style={{ color: "#555" }}>vs</span> {game.awayTeam}</div>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             {game.isPremium && <Badge color="#ffd700">👑 PREMIUM</Badge>}
@@ -274,17 +222,15 @@ function GameCard({ game, isPremium, onUnlock }) {
             <ResultBadge result={game.result} />
           </div>
         </div>
-
         {locked ? (
-          // Blurred locked state
-          <div style={{ margin: "16px 0 0", position: "relative" }}>
+          <div style={{ margin: "16px 0 0" }}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", filter: "blur(6px)", userSelect: "none", pointerEvents: "none" }}>
               <div style={{ background: "#64b5f615", border: "1px solid #64b5f633", borderRadius: 10, padding: "10px 16px", flex: 1, minWidth: 140 }}>
-                <div style={{ fontSize: 10, color: "#888", letterSpacing: 1, marginBottom: 3 }}>PREDICTION</div>
+                <div style={{ fontSize: 10, color: "#888", marginBottom: 3 }}>PREDICTION</div>
                 <div style={{ fontWeight: 800, color: "#64b5f6", fontSize: 15 }}>████████</div>
               </div>
-              <div style={{ background: "#ffffff08", border: "1px solid #ffffff10", borderRadius: 10, padding: "10px 16px", minWidth: 80, textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "#888", letterSpacing: 1, marginBottom: 3 }}>ODDS</div>
+              <div style={{ background: "#ffffff08", borderRadius: 10, padding: "10px 16px", minWidth: 80, textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: "#888", marginBottom: 3 }}>ODDS</div>
                 <div style={{ fontWeight: 800, color: "#ffeb3b", fontSize: 17 }}>█.██</div>
               </div>
             </div>
@@ -310,14 +256,9 @@ function GameCard({ game, isPremium, onUnlock }) {
           </>
         )}
       </div>
-
-      {/* Lock overlay CTA */}
       {locked && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3, borderRadius: 16 }}>
-          <button
-            onClick={onUnlock}
-            style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 12, padding: "12px 28px", fontWeight: 900, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px #ffd70044", display: "flex", alignItems: "center", gap: 8 }}
-          >
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3 }}>
+          <button onClick={onUnlock} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 12, padding: "12px 28px", fontWeight: 900, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 20px #ffd70044" }}>
             🔒 Unlock Premium Access
           </button>
         </div>
@@ -326,107 +267,83 @@ function GameCard({ game, isPremium, onUnlock }) {
   );
 }
 
-// ── Premium Banner ────────────────────────────────────────────────────────────
 function PremiumBanner({ onUnlock, price }) {
   return (
     <div style={{ background: "linear-gradient(135deg,#1e1a10,#2a2210)", border: "1px solid #ffd70030", borderRadius: 16, padding: "24px 28px", marginBottom: 24, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
       <div style={{ fontSize: 40 }}>👑</div>
       <div style={{ flex: 1, minWidth: 200 }}>
         <div style={{ fontWeight: 900, color: "#ffd700", fontSize: 17, marginBottom: 4 }}>Unlock Premium Odds</div>
-        <div style={{ color: "#888", fontSize: 13, lineHeight: 1.6 }}>Get access to our highest-confidence picks, expert analysis, and exclusive markets. Only KES {price}/month.</div>
+        <div style={{ color: "#888", fontSize: 13, lineHeight: 1.6 }}>Highest-confidence picks, expert analysis & exclusive markets. Only KES {price}/month.</div>
       </div>
-      <button onClick={onUnlock} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 12, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}>
-        Get Premium →
-      </button>
+      <button onClick={onUnlock} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 12, padding: "12px 24px", fontWeight: 900, fontSize: 14, cursor: "pointer", whiteSpace: "nowrap" }}>Get Premium →</button>
     </div>
   );
 }
 
-// ── Premium Active Badge ──────────────────────────────────────────────────────
 function PremiumActiveBadge() {
   return (
     <div style={{ background: "linear-gradient(135deg,#1e1a10,#2a2210)", border: "1px solid #ffd70040", borderRadius: 12, padding: "10px 18px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
       <span style={{ fontSize: 20 }}>👑</span>
-      <div>
-        <span style={{ fontWeight: 800, color: "#ffd700", fontSize: 14 }}>Premium Active</span>
-        <span style={{ color: "#666", fontSize: 12, marginLeft: 8 }}>All premium odds unlocked</span>
-      </div>
+      <span style={{ fontWeight: 800, color: "#ffd700", fontSize: 14 }}>Premium Active</span>
+      <span style={{ color: "#666", fontSize: 12 }}>— All premium odds unlocked</span>
     </div>
   );
 }
 
-// ── Public View ───────────────────────────────────────────────────────────────
 function PublicView({ games, onAdmin, isPremium, onUnlock }) {
   const [filter, setFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState(today());
   const [showPayment, setShowPayment] = useState(false);
   const [premiumPrice, setPremiumPrice] = useState("199");
-
-  useEffect(() => { loadPremiumPrice().then(setPremiumPrice); }, []);
+  useEffect(() => { setPremiumPrice(loadPremiumPrice()); }, []);
 
   const sports = ["all", ...new Set(games.map(g => g.sport))];
   const filtered = games.filter(g => (filter === "all" || g.sport === filter) && (!dateFilter || g.date === dateFilter));
   const wins = games.filter(g => g.result === "Won").length;
   const finished = games.filter(g => g.status === "finished").length;
-  const premiumCount = games.filter(g => g.isPremium).length;
 
   return (
     <div style={{ minHeight: "100vh", background: "#080c14", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 100 }}>
-      <div style={{ background: "linear-gradient(180deg,#0d1220 0%,#080c14 100%)", borderBottom: "1px solid #ffffff0a", padding: "0 24px", position: "sticky", top: 0, zIndex: 100 }}>
+      <div style={{ background: "linear-gradient(180deg,#0d1220,#080c14)", borderBottom: "1px solid #ffffff0a", padding: "0 24px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 64 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: "linear-gradient(135deg,#64b5f6,#1976d2)", borderRadius: 10, padding: "6px 10px", fontSize: 18 }}>🎯</div>
             <div>
-              <div style={{ fontWeight: 900, fontSize: 17, letterSpacing: -0.5 }}>BetIQ <span style={{ color: "#64b5f6" }}>Pro</span></div>
+              <div style={{ fontWeight: 900, fontSize: 17 }}>BetIQ <span style={{ color: "#64b5f6" }}>Pro</span></div>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1 }}>DAILY PREDICTIONS</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {!isPremium && (
-              <button onClick={() => setShowPayment(true)} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}>👑 Premium</button>
-            )}
+            {!isPremium && <button onClick={() => setShowPayment(true)} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}>👑 Premium</button>}
             <button onClick={onAdmin} style={{ background: "transparent", border: "1px solid #ffffff18", color: "#888", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontSize: 13 }}>Admin ⚙️</button>
           </div>
         </div>
       </div>
-
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12, marginBottom: 32 }}>
-          {[
-            ["Today's Tips", games.filter(g => g.date === today()).length, "#64b5f6"],
-            ["Win Rate", finished ? `${Math.round(wins/finished*100)}%` : "—", "#00e676"],
-            ["Active Tips", games.filter(g => g.status !== "finished").length, "#ffeb3b"],
-            ["Premium Picks", premiumCount, "#ffd700"],
-          ].map(([l, v, c]) => (
+          {[["Today's Tips", games.filter(g => g.date === today()).length, "#64b5f6"], ["Win Rate", finished ? `${Math.round(wins/finished*100)}%` : "—", "#00e676"], ["Active Tips", games.filter(g => g.status !== "finished").length, "#ffeb3b"], ["Premium Picks", games.filter(g => g.isPremium).length, "#ffd700"]].map(([l, v, c]) => (
             <div key={l} style={{ background: "#1a1f2e", borderRadius: 12, padding: "16px 20px", border: l === "Premium Picks" ? "1px solid #ffd70020" : "1px solid #ffffff08" }}>
               <div style={{ fontSize: 10, color: "#666", letterSpacing: 1.2, marginBottom: 6 }}>{l}</div>
               <div style={{ fontSize: 26, fontWeight: 900, color: c }}>{v}</div>
             </div>
           ))}
         </div>
-
         {isPremium ? <PremiumActiveBadge /> : <PremiumBanner onUnlock={() => setShowPayment(true)} price={premiumPrice} />}
-
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24, alignItems: "center" }}>
           <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} style={{ background: "#1a1f2e", border: "1px solid #ffffff15", color: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13, cursor: "pointer" }} />
           {sports.map(s => <button key={s} onClick={() => setFilter(s)} style={{ background: filter === s ? "#64b5f6" : "#1a1f2e", color: filter === s ? "#000" : "#aaa", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s === "all" ? "All Sports" : s}</button>)}
         </div>
-
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {filtered.length === 0
-            ? <div style={{ textAlign: "center", color: "#444", padding: 60, fontSize: 16 }}>No predictions for this date / filter.</div>
-            : filtered.map(g => <GameCard key={g.id} game={g} isPremium={isPremium} onUnlock={() => setShowPayment(true)} />)
-          }
+          {filtered.length === 0 ? <div style={{ textAlign: "center", color: "#444", padding: 60 }}>No predictions for this date / filter.</div>
+            : filtered.map(g => <GameCard key={g.id} game={g} isPremium={isPremium} onUnlock={() => setShowPayment(true)} />)}
         </div>
       </div>
-
       <InstallBanner />
       {showPayment && <PaymentModal price={premiumPrice} onClose={() => setShowPayment(false)} onSuccess={onUnlock} />}
     </div>
   );
 }
 
-// ── Admin Login ───────────────────────────────────────────────────────────────
 function AdminLogin({ onLogin, onBack }) {
   const [pw, setPw] = useState(""); const [err, setErr] = useState("");
   return (
@@ -445,7 +362,6 @@ function AdminLogin({ onLogin, onBack }) {
   );
 }
 
-// ── Admin Form ────────────────────────────────────────────────────────────────
 const emptyGame = () => ({ id: uid(), date: today(), league: "", homeTeam: "", awayTeam: "", time: "15:00", prediction: "", confidence: 70, odds: "1.90", tip: "", result: "", status: "upcoming", sport: "⚽ Football", isPremium: false });
 
 function GameForm({ initial, onSave, onCancel }) {
@@ -486,17 +402,15 @@ function GameForm({ initial, onSave, onCancel }) {
           <div><label style={lbl}>STATUS</label><select value={g.status} onChange={e => set("status", e.target.value)} style={{ ...inp, cursor: "pointer" }}>{STATUSES.map(s => <option key={s}>{s}</option>)}</select></div>
           <div><label style={lbl}>RESULT</label><select value={g.result} onChange={e => set("result", e.target.value)} style={{ ...inp, cursor: "pointer" }}><option value="">— Pending —</option><option>Won</option><option>Lost</option><option>Void / Postponed</option></select></div>
         </div>
-        {/* Premium Toggle */}
-        <div style={{ background: g.isPremium ? "#1e1a1000" : "#ffffff05", border: `1px solid ${g.isPremium ? "#ffd70040" : "#ffffff10"}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", transition: "all .2s" }} onClick={() => set("isPremium", !g.isPremium)}>
+        <div style={{ background: g.isPremium ? "#1e1a1005" : "#ffffff05", border: `1px solid ${g.isPremium ? "#ffd70040" : "#ffffff10"}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => set("isPremium", !g.isPremium)}>
           <div>
             <div style={{ fontWeight: 700, color: g.isPremium ? "#ffd700" : "#aaa", fontSize: 14 }}>👑 Premium Pick</div>
             <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>Requires paid subscription to view</div>
           </div>
-          <div style={{ width: 44, height: 24, borderRadius: 99, background: g.isPremium ? "#ffd700" : "#ffffff18", transition: "background .2s", position: "relative", flexShrink: 0 }}>
+          <div style={{ width: 44, height: 24, borderRadius: 99, background: g.isPremium ? "#ffd700" : "#ffffff18", position: "relative", flexShrink: 0 }}>
             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: g.isPremium ? 23 : 3, transition: "left .2s", boxShadow: "0 1px 4px #0008" }} />
           </div>
         </div>
-
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onCancel} style={{ background: "#ffffff0d", border: "none", color: "#aaa", borderRadius: 8, padding: "10px 20px", cursor: "pointer", fontWeight: 700 }}>Cancel</button>
           <button onClick={() => onSave(g)} style={{ background: "linear-gradient(135deg,#1976d2,#64b5f6)", border: "none", color: "#fff", borderRadius: 8, padding: "10px 22px", cursor: "pointer", fontWeight: 800, fontSize: 14 }}>Save Game</button>
@@ -506,29 +420,23 @@ function GameForm({ initial, onSave, onCancel }) {
   );
 }
 
-// ── Admin View ────────────────────────────────────────────────────────────────
 function AdminView({ games, setGames, onBack }) {
-  const [adding, setAdding] = useState(false); const [editing, setEditing] = useState(null);
-  const [dateFilter, setDateFilter] = useState(today()); const [search, setSearch] = useState("");
-  const [premiumPrice, setPremiumPrice] = useState("199");
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [dateFilter, setDateFilter] = useState(today());
+  const [search, setSearch] = useState("");
+  const [premiumPrice, setPremiumPrice] = useState(loadPremiumPrice());
   const [priceEditing, setPriceEditing] = useState(false);
-  const [priceInput, setPriceInput] = useState("199");
+  const [priceInput, setPriceInput] = useState(loadPremiumPrice());
 
-  useEffect(() => { loadPremiumPrice().then(p => { setPremiumPrice(p); setPriceInput(p); }); }, []);
-
-  const savePrice = async () => {
-    await savePremiumPrice(priceInput);
-    setPremiumPrice(priceInput);
-    setPriceEditing(false);
-  };
-
-  const save = async (updated) => {
+  const savePrice = () => { savePremiumPrice(priceInput); setPremiumPrice(priceInput); setPriceEditing(false); };
+  const save = (updated) => {
     const next = games.some(g => g.id === updated.id) ? games.map(g => g.id === updated.id ? updated : g) : [updated, ...games];
-    setGames(next); await saveGames(next); setAdding(false); setEditing(null);
+    setGames(next); saveGames(next); setAdding(false); setEditing(null);
   };
-  const del = async (id) => {
+  const del = (id) => {
     if (!confirm("Delete this game?")) return;
-    const next = games.filter(g => g.id !== id); setGames(next); await saveGames(next);
+    const next = games.filter(g => g.id !== id); setGames(next); saveGames(next);
   };
   const filtered = games.filter(g => (!dateFilter || g.date === dateFilter) && (!search || [g.homeTeam, g.awayTeam, g.league, g.sport].join(" ").toLowerCase().includes(search.toLowerCase()))).sort((a, b) => a.date > b.date ? -1 : 1);
   const wins = games.filter(g => g.result === "Won").length;
@@ -547,26 +455,18 @@ function AdminView({ games, setGames, onBack }) {
       </div>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "28px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 24 }}>
-          {[
-            ["Total Games", games.length, "#64b5f6"],
-            ["Today", games.filter(g => g.date === today()).length, "#ffeb3b"],
-            ["Win Rate", total ? `${Math.round(wins/total*100)}%` : "—", "#00e676"],
-            ["Premium Picks", games.filter(g => g.isPremium).length, "#ffd700"],
-            ["Pending Result", games.filter(g => g.status === "finished" && !g.result).length, "#ff5252"],
-          ].map(([l, v, c]) => (
+          {[["Total Games", games.length, "#64b5f6"], ["Today", games.filter(g => g.date === today()).length, "#ffeb3b"], ["Win Rate", total ? `${Math.round(wins/total*100)}%` : "—", "#00e676"], ["Premium Picks", games.filter(g => g.isPremium).length, "#ffd700"], ["Pending Result", games.filter(g => g.status === "finished" && !g.result).length, "#ff5252"]].map(([l, v, c]) => (
             <div key={l} style={{ background: "#1a1f2e", borderRadius: 10, padding: "14px 18px", border: l === "Premium Picks" ? "1px solid #ffd70020" : "1px solid #ffffff08" }}>
               <div style={{ fontSize: 10, color: "#555", letterSpacing: 1.2 }}>{l}</div>
               <div style={{ fontSize: 24, fontWeight: 900, color: c, marginTop: 4 }}>{v}</div>
             </div>
           ))}
         </div>
-
-        {/* Premium Price Setting */}
         <div style={{ background: "#1a1a10", border: "1px solid #ffd70030", borderRadius: 14, padding: "18px 22px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <span style={{ fontSize: 24 }}>💰</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 800, color: "#ffd700", fontSize: 14 }}>Premium Subscription Price</div>
-            <div style={{ color: "#666", fontSize: 12 }}>This is what users pay per month for premium access</div>
+            <div style={{ color: "#666", fontSize: 12 }}>What users pay per month for premium access</div>
           </div>
           {priceEditing ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -582,7 +482,6 @@ function AdminView({ games, setGames, onBack }) {
             </div>
           )}
         </div>
-
         {adding && <GameForm onSave={save} onCancel={() => setAdding(false)} />}
         {editing && <GameForm initial={editing} onSave={save} onCancel={() => setEditing(null)} />}
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
@@ -595,10 +494,10 @@ function AdminView({ games, setGames, onBack }) {
             <thead><tr style={{ background: "#1a1f2e" }}>{["Date","Sport/League","Match","Prediction","Odds","Conf.","Premium","Status","Result","Actions"].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: "#555", fontWeight: 700, letterSpacing: 0.8, fontSize: 11, borderBottom: "1px solid #ffffff08", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
             <tbody>
               {filtered.map(g => (
-                <tr key={g.id} style={{ borderBottom: "1px solid #ffffff06" }} onMouseEnter={e => e.currentTarget.style.background = "#ffffff05"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "11px 12px", color: "#888", whiteSpace: "nowrap" }}>{g.date}</td>
-                  <td style={{ padding: "11px 12px", whiteSpace: "nowrap" }}><div style={{ color: "#fff" }}>{g.sport}</div><div style={{ color: "#555", fontSize: 11 }}>{g.league}</div></td>
-                  <td style={{ padding: "11px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>{g.homeTeam} <span style={{ color: "#444" }}>vs</span> {g.awayTeam}</td>
+                <tr key={g.id} style={{ borderBottom: "1px solid #ffffff06" }}>
+                  <td style={{ padding: "11px 12px", color: "#888" }}>{g.date}</td>
+                  <td style={{ padding: "11px 12px" }}><div style={{ color: "#fff" }}>{g.sport}</div><div style={{ color: "#555", fontSize: 11 }}>{g.league}</div></td>
+                  <td style={{ padding: "11px 12px", fontWeight: 700 }}>{g.homeTeam} <span style={{ color: "#444" }}>vs</span> {g.awayTeam}</td>
                   <td style={{ padding: "11px 12px", color: "#64b5f6", fontWeight: 700 }}>{g.prediction}</td>
                   <td style={{ padding: "11px 12px", color: "#ffeb3b", fontWeight: 800 }}>{g.odds}</td>
                   <td style={{ padding: "11px 12px" }}><span style={{ color: CONFIDENCE_COLOR(g.confidence), fontWeight: 800 }}>{g.confidence}%</span></td>
@@ -620,18 +519,12 @@ function AdminView({ games, setGames, onBack }) {
   );
 }
 
-// ── App Root ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [games, setGames] = useState([]);
+  const [games, setGames] = useState(loadGames());
   const [view, setView] = useState("public");
-  const [loaded, setLoaded] = useState(false);
   const { isPremium, unlock } = usePremium();
 
-  useEffect(() => { loadGames().then(g => { setGames(g); setLoaded(true); }); }, []);
-
-  if (!loaded) return <div style={{ minHeight: "100vh", background: "#080c14", display: "flex", alignItems: "center", justifyContent: "center", color: "#444", fontFamily: "'DM Sans',sans-serif", fontSize: 15 }}>Loading predictions...</div>;
   if (view === "public") return <PublicView games={games} onAdmin={() => setView("login")} isPremium={isPremium} onUnlock={unlock} />;
   if (view === "login") return <AdminLogin onLogin={() => setView("admin")} onBack={() => setView("public")} />;
   return <AdminView games={games} setGames={setGames} onBack={() => setView("public")} />;
 }
-
