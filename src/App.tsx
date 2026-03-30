@@ -290,54 +290,200 @@ function PremiumActiveBadge() {
   );
 }
 
-function PublicView({ games, onAdmin, isPremium, onUnlock }) {
-  const [filter, setFilter] = useState("all");
+const FREE_CATEGORIES = [
+  { id: "daily_odds", label: "2+ Daily Odds", filter: (g) => !g.isPremium && parseFloat(g.odds) >= 2 },
+  { id: "unov", label: "UN/OV Tips", filter: (g) => !g.isPremium && (g.prediction?.toLowerCase().includes("over") || g.prediction?.toLowerCase().includes("under")) },
+  { id: "htft_history", label: "HT/FT History", filter: (g) => !g.isPremium && g.status === "finished" },
+  { id: "today_vip", label: "Today on VIP", filter: (g) => !g.isPremium && g.date === today() },
+];
+
+const VIP_CATEGORIES = [
+  { id: "high_odds", label: "10+ Odds Fixed VIP", filter: (g) => g.isPremium && parseFloat(g.odds) >= 2.5 },
+  { id: "ht_correct", label: "Halftime Correct Scores VIP Premium", filter: (g) => g.isPremium && g.prediction?.toLowerCase().includes("score") },
+  { id: "correct_scores", label: "Correct Scores Fixed VIP", filter: (g) => g.isPremium && g.prediction?.toLowerCase().includes("score") },
+  { id: "htft_vip", label: "HalfTime / Fulltime VIP", filter: (g) => g.isPremium },
+  { id: "ou_vip", label: "Over/Under VIP", filter: (g) => g.isPremium && (g.prediction?.toLowerCase().includes("over") || g.prediction?.toLowerCase().includes("under")) },
+];
+
+function SoccerIcon({ color = "#5bafd6" }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 3c0 0 2 4 2 9s-2 9-2 9M3 12h18M5 6.5c1.5 1 3.5 1.5 7 1.5s5.5-.5 7-1.5M5 17.5c1.5-1 3.5-1.5 7-1.5s5.5.5 7 1.5"/>
+    </svg>
+  );
+}
+
+function DiamondIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+      <polygon points="12 2 22 9 18 21 6 21 2 9"/>
+      <line x1="2" y1="9" x2="22" y2="9"/>
+      <line x1="12" y1="2" x2="6" y2="21"/>
+      <line x1="12" y1="2" x2="18" y2="21"/>
+    </svg>
+  );
+}
+
+function CategoryCard({ label, isVip, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      background: isVip ? "linear-gradient(135deg,#161c26 60%,#1e1a0e 100%)" : "#161c26",
+      border: isVip ? "1.5px solid #b8860b" : "1.5px solid #2a3347",
+      borderRadius: 14,
+      padding: "18px 16px",
+      cursor: "pointer",
+      position: "relative",
+      transition: "transform .15s, filter .15s",
+    }}
+    onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+    onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+    >
+      <div style={{
+        position: "absolute", top: 12, right: 12,
+        background: isVip ? "#b8860b" : "#1e3a5f",
+        color: isVip ? "#ffe49a" : "#5bafd6",
+        fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, letterSpacing: 0.5,
+        display: "flex", alignItems: "center", gap: 4,
+      }}>
+        {isVip && <span style={{ fontSize: 9 }}>★</span>}
+        {isVip ? "VIP" : "FREE"}
+      </div>
+      <div style={{
+        width: 36, height: 36, borderRadius: 10,
+        background: isVip ? "#b8860b" : "#1a2a3a",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        marginBottom: 10,
+      }}>
+        {isVip ? <DiamondIcon /> : <SoccerIcon />}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 500, color: "#c8d5e8", lineHeight: 1.35 }}>{label}</div>
+    </div>
+  );
+}
+
+function CategoryDetailView({ category, games, isVip, isPremium, onUnlock, onBack, showPayment, setShowPayment, premiumPrice, onUnlockSuccess }) {
   const [dateFilter, setDateFilter] = useState(today());
+  const filtered = games.filter(g => category.filter(g) && (!dateFilter || g.date === dateFilter));
+  return (
+    <div style={{ minHeight: "100vh", background: "#080c14", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 100 }}>
+      <div style={{ background: "#0d1220", borderBottom: "1px solid #ffffff0a", padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 60 }}>
+          <button onClick={onBack} style={{ background: "transparent", border: "none", color: "#aaa", cursor: "pointer", fontSize: 22, padding: "0 4px" }}>←</button>
+          <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>{category.label}</div>
+          <div style={{ width: 32 }} />
+        </div>
+      </div>
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "20px 16px" }}>
+        {isVip && !isPremium && (
+          <div style={{ background: "linear-gradient(135deg,#1e1a10,#2a2210)", border: "1px solid #ffd70030", borderRadius: 14, padding: "18px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 32 }}>👑</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, color: "#ffd700", fontSize: 15, marginBottom: 2 }}>VIP Access Required</div>
+              <div style={{ color: "#888", fontSize: 13 }}>Unlock all premium picks for KES {premiumPrice}/month</div>
+            </div>
+            <button onClick={onUnlock} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 10, padding: "10px 20px", fontWeight: 900, fontSize: 13, cursor: "pointer" }}>Get VIP →</button>
+          </div>
+        )}
+        <div style={{ marginBottom: 16 }}>
+          <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} style={{ background: "#1a1f2e", border: "1px solid #ffffff15", color: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13, cursor: "pointer" }} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {filtered.length === 0
+            ? <div style={{ textAlign: "center", color: "#444", padding: 60 }}>No tips in this category for selected date.</div>
+            : filtered.map(g => <GameCard key={g.id} game={g} isPremium={isPremium} onUnlock={onUnlock} />)}
+        </div>
+      </div>
+      {showPayment && <PaymentModal price={premiumPrice} onClose={() => setShowPayment(false)} onSuccess={onUnlockSuccess} />}
+    </div>
+  );
+}
+
+function PublicView({ games, onAdmin, isPremium, onUnlock }) {
   const [showPayment, setShowPayment] = useState(false);
   const [premiumPrice, setPremiumPrice] = useState("199");
+  const [activeCategory, setActiveCategory] = useState(null);
   useEffect(() => { setPremiumPrice(loadPremiumPrice()); }, []);
 
-  const sports = ["all", ...new Set(games.map(g => g.sport))];
-  const filtered = games.filter(g => (filter === "all" || g.sport === filter) && (!dateFilter || g.date === dateFilter));
   const wins = games.filter(g => g.result === "Won").length;
   const finished = games.filter(g => g.status === "finished").length;
 
+  if (activeCategory) {
+    return (
+      <CategoryDetailView
+        category={activeCategory}
+        games={games}
+        isVip={activeCategory.isVip}
+        isPremium={isPremium}
+        onUnlock={() => setShowPayment(true)}
+        onBack={() => setActiveCategory(null)}
+        showPayment={showPayment}
+        setShowPayment={setShowPayment}
+        premiumPrice={premiumPrice}
+        onUnlockSuccess={onUnlock}
+      />
+    );
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: "#080c14", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 100 }}>
-      <div style={{ background: "linear-gradient(180deg,#0d1220,#080c14)", borderBottom: "1px solid #ffffff0a", padding: "0 24px", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 64 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: "linear-gradient(135deg,#64b5f6,#1976d2)", borderRadius: 10, padding: "6px 10px", fontSize: 18 }}>🎯</div>
-            <div>
-              <div style={{ fontWeight: 900, fontSize: 17 }}>BetIQ <span style={{ color: "#64b5f6" }}>Pro</span></div>
-              <div style={{ fontSize: 10, color: "#555", letterSpacing: 1 }}>DAILY PREDICTIONS</div>
-            </div>
-          </div>
+    <div style={{ minHeight: "100vh", background: "#0d1117", fontFamily: "'DM Sans',sans-serif", color: "#fff", paddingBottom: 100 }}>
+      {/* Header */}
+      <div style={{ background: "#0d1117", borderBottom: "1px solid #1e2a38", padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 60 }}>
+          <div style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 22, color: "#ffd166", letterSpacing: 1 }}>BetIQ Pro</div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {!isPremium && <button onClick={() => setShowPayment(true)} style={{ background: "linear-gradient(135deg,#ffd700,#ffb300)", border: "none", color: "#000", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}>👑 Premium</button>}
-            <button onClick={onAdmin} style={{ background: "transparent", border: "1px solid #ffffff18", color: "#888", borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontSize: 13 }}>Admin ⚙️</button>
+            {!isPremium && (
+              <button onClick={() => setShowPayment(true)} style={{ background: "#b8860b", border: "none", color: "#ffe49a", borderRadius: 20, padding: "6px 14px", cursor: "pointer", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 10 }}>★</span> VIP
+              </button>
+            )}
+            {isPremium && (
+              <div style={{ background: "#1e1a0e", border: "1px solid #b8860b", borderRadius: 20, padding: "5px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 10, color: "#ffd700" }}>★</span>
+                <span style={{ color: "#ffd700", fontSize: 12, fontWeight: 700 }}>VIP Active</span>
+              </div>
+            )}
+            <button onClick={onAdmin} style={{ background: "transparent", border: "1px solid #2a3347", color: "#7a9bb5", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12 }}>⚙️</button>
           </div>
         </div>
       </div>
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12, marginBottom: 32 }}>
-          {[["Today's Tips", games.filter(g => g.date === today()).length, "#64b5f6"], ["Win Rate", finished ? `${Math.round(wins/finished*100)}%` : "—", "#00e676"], ["Active Tips", games.filter(g => g.status !== "finished").length, "#ffeb3b"], ["Premium Picks", games.filter(g => g.isPremium).length, "#ffd700"]].map(([l, v, c]) => (
-            <div key={l} style={{ background: "#1a1f2e", borderRadius: 12, padding: "16px 20px", border: l === "Premium Picks" ? "1px solid #ffd70020" : "1px solid #ffffff08" }}>
-              <div style={{ fontSize: 10, color: "#666", letterSpacing: 1.2, marginBottom: 6 }}>{l}</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: c }}>{v}</div>
+
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "20px 16px" }}>
+        {/* Stats strip */}
+        <div style={{ background: "linear-gradient(90deg,#1a2a0a,#0e2a1a)", border: "1px solid #2d4a1e", borderRadius: 12, padding: "12px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4adf70", animation: "none" }} />
+          <div style={{ fontSize: 12, color: "#7ec87e", fontWeight: 500, flex: 1 }}>
+            {games.filter(g => g.date === today()).length} tips today
+            {finished > 0 && <span style={{ color: "#4a7a4a", marginLeft: 12 }}>· {Math.round(wins / finished * 100)}% win rate</span>}
+          </div>
+          <div style={{ fontSize: 12, color: "#4a7a4a" }}>{games.filter(g => g.status !== "finished").length} active</div>
+        </div>
+
+        {/* FREE section */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+          {FREE_CATEGORIES.map(cat => (
+            <CategoryCard key={cat.id} label={cat.label} isVip={false} onClick={() => setActiveCategory({ ...cat, isVip: false })} />
+          ))}
+        </div>
+
+        {/* VIP section header */}
+        <div style={{ margin: "28px 0 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, color: "#fff", fontFamily: "Georgia,serif" }}>FIXED VIP TIPS</div>
+        </div>
+
+        {/* VIP grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {VIP_CATEGORIES.map((cat, i) => (
+            <div key={cat.id} style={i === VIP_CATEGORIES.length - 1 && VIP_CATEGORIES.length % 2 !== 0 ? { gridColumn: "1 / 2" } : {}}>
+              <CategoryCard label={cat.label} isVip={true} onClick={() => {
+                if (!isPremium) { setShowPayment(true); return; }
+                setActiveCategory({ ...cat, isVip: true });
+              }} />
             </div>
           ))}
         </div>
-        {isPremium ? <PremiumActiveBadge /> : <PremiumBanner onUnlock={() => setShowPayment(true)} price={premiumPrice} />}
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24, alignItems: "center" }}>
-          <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} style={{ background: "#1a1f2e", border: "1px solid #ffffff15", color: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13, cursor: "pointer" }} />
-          {sports.map(s => <button key={s} onClick={() => setFilter(s)} style={{ background: filter === s ? "#64b5f6" : "#1a1f2e", color: filter === s ? "#000" : "#aaa", border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s === "all" ? "All Sports" : s}</button>)}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {filtered.length === 0 ? <div style={{ textAlign: "center", color: "#444", padding: 60 }}>No predictions for this date / filter.</div>
-            : filtered.map(g => <GameCard key={g.id} game={g} isPremium={isPremium} onUnlock={() => setShowPayment(true)} />)}
-        </div>
       </div>
+
       <InstallBanner />
       {showPayment && <PaymentModal price={premiumPrice} onClose={() => setShowPayment(false)} onSuccess={onUnlock} />}
     </div>
